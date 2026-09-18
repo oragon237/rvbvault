@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rvb-vault"
+version = "1.2.0"
+description = "Local-first Windows productivity vault"
+requires-python = ">=3.12"
+dependencies = [
+  "PySide6>=6.7,<6.10",
+  "cryptography>=42,<46",
+  "winrt-Windows.Foundation>=3.2,<4",
+  "winrt-Windows.Foundation.Collections>=3.2,<4",
+  "winrt-Windows.Security.Credentials.UI>=3.2,<4",
+  "winrt-Windows.Storage>=3.2,<4",
+]
+
+[project.scripts]
+rvb-vault = "rvb_vault.app:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]

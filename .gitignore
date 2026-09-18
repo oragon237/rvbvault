@@ -1,0 +1,6 @@
+
+# Generated / build directories
+build/
+dist/
+outputs/
+work/
