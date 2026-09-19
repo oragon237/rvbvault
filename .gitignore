@@ -4,3 +4,5 @@ build/
 dist/
 outputs/
 work/
+__pycache__/
+*.py[cod]
