@@ -19,7 +19,7 @@ Make saved text immediately retrievable and safely copyable from a polished Wind
 - FTS5 search over title, tags, notes, and non-secret field values only.
 - One-click field copy, template variable resolution, copy-entire-entry, and ordered procedure steps.
 - Reusable Group Fields / Command Builders containing unlimited ordered fixed and editable segments, with exact whitespace preservation, a structure editor, runtime inputs, live preview, and one-click assembled-output copying.
-- Password generation, Windows Hello-first vault lock, 15-minute default inactivity lock, Windows lock/sleep awareness, and configurable secret clipboard clearing.
+- Password generation, master-password vault lock, 15-minute default inactivity lock, Windows lock/sleep awareness, and configurable secret clipboard clearing.
 - Quick search dialog, `Ctrl+Shift+Space` global hotkey where Windows permits, keyboard shortcuts, and system tray.
 - Local SQLite storage, encrypted automatic rolling backups, recovery-password full backups, secret-redacted safe exports, and previewed collection imports with duplicate handling.
 - Settings and About screens; PyInstaller one-directory build configuration.
@@ -28,6 +28,7 @@ Make saved text immediately retrievable and safely copyable from a polished Wind
 
 - Cloud sync, browser extensions, collaboration, telemetry, localhost services, or mobile clients.
 - Cross-device decryption of Windows-bound rolling backups. Portable recovery-password backups cover deliberate transfer and disaster recovery.
+- Windows Hello desktop unlock remains pending a supported, tested window-owned integration. The build does not use the UWP-only consent method as a false security gate.
 
 ## Quality and acceptance
 

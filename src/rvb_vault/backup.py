@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import sqlite3
 from dataclasses import asdict, dataclass
@@ -98,6 +99,12 @@ class BackupManager:
             raw = decrypt_with_password(payload, password)
         else:
             raw = self.cipher.decrypt(payload, context=b"backup")
+        # Earlier RVB backups stored a complete snapshot with WAL header bytes.
+        # A standalone restore has no WAL sidecar, so normalize that header.
+        if raw.startswith(b"SQLite format 3\x00") and len(raw) > 19 and raw[18:20] == b"\x02\x02":
+            normalized = bytearray(raw)
+            normalized[18] = normalized[19] = 1
+            raw = bytes(normalized)
         self._validate_database_bytes(raw)
         return raw
 
@@ -113,7 +120,11 @@ class BackupManager:
         self.db.path.write_bytes(raw)
 
     def prune(self, keep: int) -> None:
-        files = sorted(self.backup_dir.glob("*.rvbbackup"), reverse=True)
+        files = sorted(
+            (path for path in self.backup_dir.glob("rvb-vault-*.rvbbackup")
+             if re.fullmatch(r"rvb-vault-\d{8}-\d{6}\.rvbbackup", path.name)),
+            reverse=True,
+        )
         for old in files[max(keep, 1):]:
             old.unlink(missing_ok=True)
 
@@ -303,10 +314,10 @@ class BackupManager:
                 entry = item.entry
                 entry.category_id = category_id
                 entry.id = duplicate_id if duplicate_id and duplicate_mode == "update" else None
-                if entry.id and item.redacted_fields:
+                if entry.id:
                     existing_entry = self.db.get_entry(entry.id)
                     if existing_entry:
-                        for field_index in item.redacted_fields:
+                        for field_index in item.redacted_fields or set():
                             if field_index >= len(entry.fields):
                                 continue
                             incoming = entry.fields[field_index]
@@ -320,6 +331,12 @@ class BackupManager:
                             )
                             if matching:
                                 incoming.value = matching.value
+                        incoming_secret_names = {
+                            field.name.casefold() for field in entry.fields if field.is_secret
+                        }
+                        for existing_field in existing_entry.fields:
+                            if existing_field.is_secret and existing_field.name.casefold() not in incoming_secret_names:
+                                entry.fields.append(existing_field)
                 self.db.save_entry(entry)
                 if duplicate_id and duplicate_mode == "update":
                     result.updated += 1

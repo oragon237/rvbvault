@@ -23,9 +23,10 @@ class SettingsAndWindowsTests(unittest.TestCase):
         self.assertNotIn("UTC", formatted)
 
     @unittest.skipUnless(os.name == "nt", "Windows Hello is Windows-only")
-    def test_windows_hello_availability_check_uses_native_api(self):
+    def test_windows_hello_desktop_gate_fails_closed(self):
         authenticator = WindowsHelloAuthenticator()
-        self.assertIsInstance(authenticator.available(), bool)
+        self.assertFalse(authenticator.available())
+        self.assertIn("not supported", authenticator.last_error)
 
 
 if __name__ == "__main__":

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import ctypes
 import os
 from ctypes import wintypes
@@ -9,51 +8,16 @@ from PySide6.QtCore import QAbstractNativeEventFilter, QObject, Signal
 
 
 class WindowsHelloAuthenticator:
-    """Thin wrapper around Windows' own consent UI; no PIN or biometric data enters RVB Vault."""
+    """Fail-closed capability check until supported desktop interop is available."""
 
     def __init__(self) -> None:
         self.last_error = ""
 
-    @staticmethod
-    def _run(operation):
-        async def wait_for_result():
-            return await operation
-
-        return asyncio.run(wait_for_result())
-
     def available(self) -> bool:
-        if os.name != "nt":
-            self.last_error = "Windows Hello is only available on Windows"
-            return False
-        try:
-            from winrt.windows.security.credentials.ui import (
-                UserConsentVerifier,
-                UserConsentVerifierAvailability,
-            )
-
-            result = self._run(UserConsentVerifier.check_availability_async())
-            if result == UserConsentVerifierAvailability.AVAILABLE:
-                self.last_error = ""
-                return True
-            self.last_error = str(result).rsplit(".", 1)[-1].replace("_", " ").title()
-        except Exception as exc:
-            self.last_error = f"Windows Hello unavailable: {exc}"
-        return False
-
-    def verify(self, message: str = "Unlock RVB Vault") -> bool:
-        try:
-            from winrt.windows.security.credentials.ui import (
-                UserConsentVerificationResult,
-                UserConsentVerifier,
-            )
-
-            result = self._run(UserConsentVerifier.request_verification_async(message))
-            if result == UserConsentVerificationResult.VERIFIED:
-                self.last_error = ""
-                return True
-            self.last_error = str(result).rsplit(".", 1)[-1].replace("_", " ").title()
-        except Exception as exc:
-            self.last_error = f"Windows Hello failed: {exc}"
+        # A device-level availability check is not proof that an unpackaged Qt
+        # desktop process can display a supported, window-owned consent prompt.
+        # The UWP RequestVerificationAsync API must not be used as an unlock gate.
+        self.last_error = "Windows Hello desktop unlock is not supported in this build"
         return False
 
 

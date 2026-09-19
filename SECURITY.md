@@ -6,9 +6,9 @@ Secret field values are stored only in `value_secret` after AES-256-GCM encrypti
 
 ## Authentication and locking
 
-Windows Hello uses `Windows.Security.Credentials.UI.UserConsentVerifier`. Windows displays and evaluates the PIN, fingerprint, or face prompt; RVB Vault receives only the verification result. The app locks after 15 minutes by default and reacts to Windows session lock and suspend messages. Locking masks and removes decrypted entry widgets and clears RVB-owned sensitive clipboard content when it is still unchanged.
+Windows Hello desktop unlock is unavailable in this build. Microsoft documents `UserConsentVerifier.RequestVerificationAsync` as UWP-only for this use; using it in an unpackaged Qt desktop app did not produce a reliable window-owned prompt. RVB Vault fails closed by requiring a master password before first opening the vault and never handles a Windows PIN or biometric data. The app locks after 15 minutes by default and reacts to Windows session lock and suspend messages. Locking masks and removes decrypted entry widgets and clears RVB-owned sensitive clipboard content when it is still unchanged.
 
-An optional master-password verifier is PBKDF2-HMAC-SHA256 with a random salt. It is a fallback gate, not encryption key material, and the password itself is never stored.
+The required master-password verifier is PBKDF2-HMAC-SHA256 with a random salt. It is a UI gate, not encryption key material, and the password itself is never stored. Because encryption-at-rest uses Windows DPAPI, Windows account security remains essential; the app-level lock is not a defense against code already running as the signed-in Windows user.
 
 ## Exports and backups
 

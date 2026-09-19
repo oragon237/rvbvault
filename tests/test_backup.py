@@ -109,6 +109,36 @@ class BackupTests(unittest.TestCase):
         self.assertEqual((result.imported, result.skipped), (1, 1))
         self.assertEqual(len(self.db.list_entries(category_id=category.id)), 2)
 
+    def test_rolling_prune_keeps_manual_and_preupgrade_backups(self):
+        manual = self.manager.backup_dir / "rvb-vault-backup.rvbbackup"
+        preupgrade = self.manager.backup_dir / "pre-upgrade-1.2.0-20260919-013739.rvbbackup"
+        rolling_old = self.manager.backup_dir / "rvb-vault-20260918-010101.rvbbackup"
+        rolling_new = self.manager.backup_dir / "rvb-vault-20260919-010101.rvbbackup"
+        for path in (manual, preupgrade, rolling_old, rolling_new):
+            path.write_bytes(b"test")
+        self.manager.prune(1)
+        self.assertTrue(manual.exists())
+        self.assertTrue(preupgrade.exists())
+        self.assertFalse(rolling_old.exists())
+        self.assertTrue(rolling_new.exists())
+
+    def test_password_backup_restore_requires_password_and_preserves_rollback(self):
+        category = self.db.list_categories()[0]
+        self.db.save_entry(Entry(category_id=category.id, title="Before backup"))
+        backup = self.root / "restore-check.rvbbackup"
+        self.manager.create_password_backup(backup, "correct horse battery staple")
+        self.db.save_entry(Entry(category_id=category.id, title="After backup"))
+        with self.assertRaises(ValueError):
+            self.manager.restore_encrypted(backup, "incorrect password")
+        self.assertEqual(len(self.db.list_entries()), 2)
+        self.manager.restore_encrypted(backup, "correct horse battery staple")
+        restored = VaultDatabase(self.root / "vault.db", self.cipher)
+        try:
+            self.assertEqual([entry.title for entry in restored.list_entries()], ["Before backup"])
+            self.assertTrue((self.root / "vault.db.before-restore").exists())
+        finally:
+            restored.close()
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -4,12 +4,7 @@ a = Analysis(
     pathex=["src"],
     binaries=[],
     datas=[("assets/rvb_vault.ico", "assets")],
-    hiddenimports=[
-        "winrt.windows.foundation",
-        "winrt.windows.foundation.collections",
-        "winrt.windows.security.credentials.ui",
-        "winrt.windows.storage",
-    ],
+    hiddenimports=[],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

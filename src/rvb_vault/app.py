@@ -4,6 +4,7 @@ import os
 import sys
 import traceback
 import ctypes
+import re
 from pathlib import Path
 
 from PySide6.QtCore import QEvent, QObject, QTimer, Qt
@@ -16,9 +17,9 @@ from rvb_vault.clipboard import ClipboardService
 from rvb_vault.db import VaultDatabase
 from rvb_vault.hotkey import GlobalHotkeyFilter
 from rvb_vault.paths import backups_dir, database_path, data_dir, key_path
-from rvb_vault.security import LocalCipher
+from rvb_vault.security import LocalCipher, create_password_verifier
 from rvb_vault.settings import SettingsStore
-from rvb_vault.ui.dialogs import UnlockDialog
+from rvb_vault.ui.dialogs import MasterPasswordSetupDialog, UnlockDialog
 from rvb_vault.ui.main_window import MainWindow
 from rvb_vault.ui.quick_search import QuickSearchDialog
 from rvb_vault.ui.theme import apply_theme, enable_windows_blur
@@ -35,16 +36,16 @@ def app_icon() -> QIcon:
 
 
 class AppController(QObject):
-    def __init__(self, app: QApplication) -> None:
+    def __init__(self, app: QApplication, settings: SettingsStore | None = None) -> None:
         super().__init__()
         self.app = app
-        self.settings = SettingsStore()
+        self.settings = settings or SettingsStore()
         self.prefs = self.settings.load()
         self.cipher = LocalCipher(key_path())
         self.db = VaultDatabase(database_path(), self.cipher)
         self.backup = BackupManager(self.db, self.cipher, backups_dir())
         self.clipboard = ClipboardService(self.prefs.clipboard_clear_seconds)
-        self.window = MainWindow(self.db, self.clipboard, self.backup, self.settings)
+        self.window = MainWindow(self.db, self.clipboard, self.backup, self.settings, defer_initial_load=True)
         self.quick = QuickSearchDialog(self.db, self.clipboard, self.window)
         self.quick.entry_requested.connect(self.window.open_entry)
         self.window.settings_changed.connect(self.settings_changed)
@@ -129,7 +130,11 @@ class AppController(QObject):
 
     def _automatic_backup(self) -> None:
         try:
-            existing = sorted(backups_dir().glob("*.rvbbackup"), reverse=True)
+            existing = sorted(
+                (path for path in backups_dir().glob("rvb-vault-*.rvbbackup")
+                 if re.fullmatch(r"rvb-vault-\d{8}-\d{6}\.rvbbackup", path.name)),
+                reverse=True,
+            )
             today = __import__("datetime").date.today().strftime("%Y%m%d")
             if not existing or today not in existing[0].name:
                 self.backup.create_encrypted()
@@ -138,13 +143,17 @@ class AppController(QObject):
             self.window.flash_status(f"Automatic backup failed: {exc}")
 
     def start(self) -> None:
-        if self._authentication_available():
-            self.locked = True
-            self.unlock(close_on_cancel=True)
-        else:
+        if not self._authentication_available():
+            setup = MasterPasswordSetupDialog(self.window)
+            if setup.exec() != setup.DialogCode.Accepted:
+                self.quit()
+                return
+            self.settings.set_bytes("security/password_verifier", create_password_verifier(setup.password.text()))
+            self.window.restore_after_unlock()
             self.show_window()
-            if self.prefs.windows_hello:
-                self.window.flash_status(self.hello.last_error or "Configure Windows Hello to protect the vault")
+            return
+        self.locked = True
+        self.unlock(close_on_cancel=True)
 
     def show_window(self) -> None:
         if self.locked:
@@ -162,8 +171,8 @@ class AppController(QObject):
         self.quick.show_search()
 
     def _authentication_available(self) -> bool:
-        if self.prefs.windows_hello and self.hello.available():
-            return True
+        if self.prefs.windows_hello:
+            self.hello.available()
         return bool(self.settings.get_bytes("security/password_verifier"))
 
     def lock(self) -> None:
@@ -180,20 +189,10 @@ class AppController(QObject):
         self.window.hide()
 
     def unlock(self, *, close_on_cancel: bool = False) -> None:
-        if self.prefs.windows_hello and self.hello.available():
-            if self.hello.verify("Unlock RVB Vault"):
-                self.locked = False
-                self.reset_inactivity()
-                self.window.restore_after_unlock()
-                self.show_window()
-                return
-            if close_on_cancel:
-                self.quit()
-            return
         verifier = self.settings.get_bytes("security/password_verifier")
         if not verifier:
-            self.locked = False
-            self.show_window()
+            self.locked = True
+            self.window.flash_status("Vault protection is not configured")
             return
         dialog = UnlockDialog(verifier)
         if dialog.exec() == dialog.DialogCode.Accepted:
@@ -201,6 +200,8 @@ class AppController(QObject):
             self.reset_inactivity()
             self.window.restore_after_unlock()
             self.show_window()
+        elif close_on_cancel:
+            self.quit()
 
     def _session_resumed(self) -> None:
         # The vault stays locked after session unlock/resume. The next attempt to

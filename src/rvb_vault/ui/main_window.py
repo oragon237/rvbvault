@@ -52,6 +52,8 @@ class MainWindow(QMainWindow):
         clipboard: ClipboardService,
         backup: BackupManager,
         settings: SettingsStore,
+        *,
+        defer_initial_load: bool = False,
     ) -> None:
         super().__init__()
         self.db = db
@@ -73,7 +75,8 @@ class MainWindow(QMainWindow):
         self._connect()
         self._shortcuts()
         self.reload_categories()
-        self.refresh_entries()
+        if not defer_initial_load:
+            self.refresh_entries()
 
     def _build_ui(self) -> None:
         central = QWidget()

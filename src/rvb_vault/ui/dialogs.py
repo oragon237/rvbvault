@@ -65,7 +65,9 @@ class SettingsDialog(QDialog):
         self.global_hotkey.setChecked(prefs.global_hotkey)
         form.addRow("Quick search", self.global_hotkey)
         self.windows_hello = QCheckBox("Use Windows Hello / Windows Security to unlock")
-        self.windows_hello.setChecked(prefs.windows_hello)
+        self.windows_hello.setChecked(False)
+        self.windows_hello.setEnabled(False)
+        self.windows_hello.setToolTip("Desktop Windows Hello is not available in this build; use a master password")
         form.addRow("Vault protection", self.windows_hello)
         root.addLayout(form)
 
@@ -85,7 +87,7 @@ class SettingsDialog(QDialog):
         self.confirm.setPlaceholderText("Confirm new master password")
         root.addWidget(self.confirm)
         self.remove_password = QCheckBox("Remove the existing master password")
-        self.remove_password.setVisible(has_password)
+        self.remove_password.setVisible(False)
         root.addWidget(self.remove_password)
 
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Cancel | QDialogButtonBox.StandardButton.Save)
@@ -153,6 +155,48 @@ class RecoveryPasswordDialog(QDialog):
             return
         if confirm and self.password.text() != self.confirm.text():
             QMessageBox.warning(self, "Passwords do not match", "Enter the same recovery password twice.")
+            return
+        self.accept()
+
+
+class MasterPasswordSetupDialog(QDialog):
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Protect RVB Vault")
+        self.setMinimumWidth(430)
+        root = QVBoxLayout(self)
+        root.setContentsMargins(24, 22, 24, 22)
+        root.setSpacing(11)
+        title = QLabel("Protect your vault")
+        title.setObjectName("brand")
+        root.addWidget(title)
+        explanation = QLabel(
+            "Windows Hello desktop unlock is not available in this build. "
+            "Set a master password to lock RVB Vault; your saved secrets remain encrypted with your Windows account."
+        )
+        explanation.setObjectName("muted")
+        explanation.setWordWrap(True)
+        root.addWidget(explanation)
+        self.password = QLineEdit()
+        self.password.setEchoMode(QLineEdit.EchoMode.Password)
+        self.password.setPlaceholderText("Master password (at least 10 characters)")
+        root.addWidget(self.password)
+        self.confirm = QLineEdit()
+        self.confirm.setEchoMode(QLineEdit.EchoMode.Password)
+        self.confirm.setPlaceholderText("Confirm master password")
+        root.addWidget(self.confirm)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Cancel | QDialogButtonBox.StandardButton.Save)
+        buttons.accepted.connect(self._validate)
+        buttons.rejected.connect(self.reject)
+        root.addWidget(buttons)
+        self.password.setFocus()
+
+    def _validate(self) -> None:
+        if len(self.password.text()) < 10:
+            QMessageBox.warning(self, "Password too short", "Use at least 10 characters.")
+            return
+        if self.password.text() != self.confirm.text():
+            QMessageBox.warning(self, "Passwords do not match", "Enter the same master password twice.")
             return
         self.accept()
 
